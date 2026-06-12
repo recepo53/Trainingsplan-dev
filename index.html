@@ -9,7 +9,7 @@
 <meta name="theme-color" content="#111111">
 <title>Recep's Trainingsplan</title>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1">
+<link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
 
@@ -209,6 +209,9 @@
   <button class="nav-b" id="navH" onclick="switchTab('h')">
     <div class="nav-b-icon">🗓</div><div class="nav-b-lbl">Historie</div>
   </button>
+  <button class="nav-b" id="navF" onclick="switchTab('f')">
+    <div class="nav-b-icon">📸</div><div class="nav-b-lbl">Fotos</div>
+  </button>
   <button class="nav-b" id="navG" onclick="switchTab('g')">
     <div class="nav-b-icon">⚖️</div><div class="nav-b-lbl">Gewicht</div>
   </button>
@@ -274,6 +277,32 @@
 </div>
 
 <!-- CONFIRM -->
+<!-- FOTOS PANEL -->
+<div id="photoPanel" class="prog-panel">
+  <div class="prog-heading">PROGRESS</div>
+  <label class="ph-upload" for="phFile">📸 Foto hinzufügen</label>
+  <input type="file" id="phFile" accept="image/*" style="display:none" onchange="onPhotoPick(this)">
+  <div class="ph-meta"><span id="phStats">0 Fotos</span><span class="ph-local">🔒 nur auf diesem Gerät</span></div>
+  <div class="ph-grid" id="phGrid"></div>
+  <div class="ph-empty" id="phEmpty">Noch keine Fotos.<br>Mach nach dem Training dein erstes Progress-Foto! 💪</div>
+</div>
+
+<div class="ph-viewer" id="phViewer">
+  <div class="ph-v-top">
+    <div class="ph-v-date" id="phVDate"></div>
+    <div style="display:flex;gap:8px;">
+      <button class="ph-v-x" onclick="sharePhoto()" title="In Galerie speichern / teilen">⤓</button>
+      <button class="ph-v-x" onclick="closePhView()">✕</button>
+    </div>
+  </div>
+  <img class="ph-v-img" id="phVImg" alt="Progress-Foto">
+  <div class="ph-v-bar">
+    <button class="ph-v-btn" onclick="phNav(-1)">‹ Älter</button>
+    <button class="ph-v-btn del" onclick="askDelPhoto()">🗑</button>
+    <button class="ph-v-btn" onclick="phNav(1)">Neuer ›</button>
+  </div>
+</div>
+
 <div class="overlay" id="dayMgrOv">
   <div class="modal">
     <div class="m-hdr"><div class="m-ttl">EINHEITEN</div><button class="m-x" onclick="closeDayMgr()">✕</button></div>
@@ -348,6 +377,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=1"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>

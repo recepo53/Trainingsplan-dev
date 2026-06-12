@@ -963,13 +963,162 @@ function switchTab(t){
   document.getElementById('progPanel').classList.toggle('show',t==='p');
   document.getElementById('histPanel').classList.toggle('show',t==='h');
   document.getElementById('weightPanel').classList.toggle('show',t==='g');
+  document.getElementById('photoPanel').classList.toggle('show',t==='f');
   document.getElementById('navW').classList.toggle('on',t==='w');
   document.getElementById('navP').classList.toggle('on',t==='p');
   document.getElementById('navH').classList.toggle('on',t==='h');
   document.getElementById('navG').classList.toggle('on',t==='g');
+  document.getElementById('navF').classList.toggle('on',t==='f');
   if(t==='p') renderProgress();
   if(t==='h') renderHistory();
   if(t==='g') renderWeight();
+  if(t==='f') renderPhotos();
+}
+
+// ═══════════════════════════════════════════════
+// PROGRESS-FOTOS (nur lokal, IndexedDB)
+// ═══════════════════════════════════════════════
+let PH=[];        // Foto-Liste im Speicher (neueste zuerst)
+let phIdx=0;      // aktuelles Foto im Viewer
+let phDB=null;
+
+function phOpenDB(){
+  return new Promise((res,rej)=>{
+    if(phDB) return res(phDB);
+    const rq=indexedDB.open('recep_photos',1);
+    rq.onupgradeneeded=e=>{ e.target.result.createObjectStore('photos',{keyPath:'id'}); };
+    rq.onsuccess=e=>{ phDB=e.target.result; res(phDB); };
+    rq.onerror=()=>rej(rq.error);
+  });
+}
+function phAdd(rec){
+  return phOpenDB().then(db=>new Promise((res,rej)=>{
+    const tx=db.transaction('photos','readwrite');
+    tx.objectStore('photos').put(rec);
+    tx.oncomplete=res; tx.onerror=()=>rej(tx.error);
+  }));
+}
+function phAll(){
+  return phOpenDB().then(db=>new Promise((res,rej)=>{
+    const rq=db.transaction('photos','readonly').objectStore('photos').getAll();
+    rq.onsuccess=()=>res(rq.result||[]); rq.onerror=()=>rej(rq.error);
+  }));
+}
+function phDel(id){
+  return phOpenDB().then(db=>new Promise((res,rej)=>{
+    const tx=db.transaction('photos','readwrite');
+    tx.objectStore('photos').delete(id);
+    tx.oncomplete=res; tx.onerror=()=>rej(tx.error);
+  }));
+}
+
+// Bild verkleinern: längste Seite max 1080px, JPEG 80 %
+function compressImage(file){
+  return new Promise((res,rej)=>{
+    const url=URL.createObjectURL(file);
+    const img=new Image();
+    img.onload=()=>{
+      const MAX=1080;
+      let w=img.width,hh=img.height;
+      if(Math.max(w,hh)>MAX){ const f=MAX/Math.max(w,hh); w=Math.round(w*f); hh=Math.round(hh*f); }
+      const cv=document.createElement('canvas');
+      cv.width=w; cv.height=hh;
+      cv.getContext('2d').drawImage(img,0,0,w,hh);
+      URL.revokeObjectURL(url);
+      res(cv.toDataURL('image/jpeg',0.8));
+    };
+    img.onerror=()=>{ URL.revokeObjectURL(url); rej(new Error('Bild konnte nicht gelesen werden')); };
+    img.src=url;
+  });
+}
+
+async function onPhotoPick(input){
+  const file=input.files&&input.files[0];
+  input.value='';
+  if(!file) return;
+  toast('Foto wird verarbeitet …');
+  try{
+    const dataURL=await compressImage(file);
+    await phAdd({ id:uid(), date:getToday(), ts:Date.now(), img:dataURL, size:dataURL.length });
+    await renderPhotos();
+    toast('Foto gespeichert ✓');
+  }catch(e){
+    toast('Foto konnte nicht gespeichert werden');
+  }
+}
+
+async function renderPhotos(){
+  try{ PH=(await phAll()).sort((a,b)=>(b.ts||0)-(a.ts||0)); }
+  catch(e){ PH=[]; }
+  const grid=document.getElementById('phGrid');
+  const empty=document.getElementById('phEmpty');
+  const mb=PH.reduce((s,p)=>s+(p.size||0),0)/1048576;
+  document.getElementById('phStats').textContent=
+    PH.length+' Foto'+(PH.length===1?'':'s')+(PH.length?' · '+(mb<0.1?'<0,1':mb.toFixed(1).replace('.',','))+' MB':'');
+  empty.style.display=PH.length?'none':'block';
+  grid.innerHTML=PH.map((p,i)=>
+    `<div class="ph-thumb" onclick="openPhView(${i})"><img src="${p.img}" alt=""><div class="ph-d">${fmtDate(p.date)}</div></div>`
+  ).join('');
+}
+
+function openPhView(i){
+  phIdx=i;
+  updatePhView();
+  document.getElementById('phViewer').classList.add('open');
+}
+function closePhView(){ document.getElementById('phViewer').classList.remove('open'); }
+function updatePhView(){
+  const p=PH[phIdx]; if(!p) return closePhView();
+  document.getElementById('phVImg').src=p.img;
+  document.getElementById('phVDate').textContent=fmtDate(p.date);
+  // PH ist neueste-zuerst: "Älter" = Index+1, "Neuer" = Index-1
+  document.querySelector('#phViewer .ph-v-bar .ph-v-btn:first-child').disabled = phIdx>=PH.length-1;
+  document.querySelector('#phViewer .ph-v-bar .ph-v-btn:last-child').disabled = phIdx<=0;
+}
+function phNav(dir){
+  const n=phIdx-dir; // dir 1 = neuer = Index runter
+  if(n<0||n>=PH.length) return;
+  phIdx=n; updatePhView();
+}
+// Foto in die Handy-Galerie sichern (natives Teilen-Menü) oder herunterladen (PC)
+async function sharePhoto(){
+  const p=PH[phIdx]; if(!p) return;
+  let file=null;
+  try{
+    const blob=await (await fetch(p.img)).blob();
+    file=new File([blob],'progress_'+p.date+'.jpg',{type:'image/jpeg'});
+  }catch(e){}
+  if(file && navigator.canShare && navigator.canShare({files:[file]})){
+    try{
+      await navigator.share({ files:[file], title:'Progress '+fmtDate(p.date) });
+      return; // Nutzer hat im nativen Menü gespeichert/geteilt
+    }catch(e){
+      if(e && e.name==='AbortError') return; // bewusst abgebrochen → nichts tun
+    }
+  }
+  // Fallback: klassischer Download (Desktop / ältere Browser)
+  const a=document.createElement('a');
+  a.href=p.img;
+  a.download='progress_'+p.date+'.jpg';
+  document.body.appendChild(a); a.click(); a.remove();
+  toast('Foto heruntergeladen ⤓');
+}
+
+function askDelPhoto(){
+  document.getElementById('confTtl').textContent='Foto löschen?';
+  document.getElementById('confMsg').textContent='Dieses Progress-Foto wird dauerhaft von diesem Gerät gelöscht.';
+  document.getElementById('confYes').onclick=doDelPhoto;
+  document.getElementById('confOv').classList.add('open');
+}
+async function doDelPhoto(){
+  const p=PH[phIdx];
+  closeConf();
+  if(!p) return;
+  await phDel(p.id);
+  await renderPhotos();
+  if(!PH.length) closePhView();
+  else { phIdx=Math.min(phIdx,PH.length-1); updatePhView(); }
+  toast('Foto gelöscht');
 }
 
 // ═══════════════════════════════════════════════

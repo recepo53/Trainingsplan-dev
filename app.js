@@ -151,6 +151,64 @@ let restEndTime = null;
 let restInterval = null;
 let restDuration = 120;
 
+// ── Pausen-Wecker: Web Worker tickt auch im Hintergrund-Tab präzise ──
+let restWorker=null, restFallbackT=null, restFired=false;
+
+function armRestAlarm(ms){
+  disarmRestAlarm();
+  restFired=false;
+  try{
+    const code='onmessage=e=>{setTimeout(()=>postMessage(1),e.data)}';
+    restWorker=new Worker(URL.createObjectURL(new Blob([code],{type:'application/javascript'})));
+    restWorker.onmessage=()=>restDone();
+    restWorker.postMessage(ms);
+  }catch(e){
+    // Fallback ohne Worker (alte Browser / Testumgebung)
+    restFallbackT=setTimeout(restDone, ms);
+  }
+}
+function disarmRestAlarm(){
+  if(restWorker){ try{restWorker.terminate();}catch(e){} restWorker=null; }
+  if(restFallbackT){ clearTimeout(restFallbackT); restFallbackT=null; }
+}
+
+// Doppelter Signalton (kein Audio-Asset nötig)
+let beepCtx=null;
+function unlockAudio(){
+  try{
+    if(!beepCtx) beepCtx=new (window.AudioContext||window.webkitAudioContext)();
+    if(beepCtx.state==='suspended') beepCtx.resume();
+  }catch(e){}
+}
+function beep(){
+  try{
+    if(!beepCtx) return;
+    [0,0.22].forEach(t0=>{
+      const o=beepCtx.createOscillator(), g=beepCtx.createGain();
+      o.frequency.value=880; o.type='sine';
+      g.gain.setValueAtTime(0.0001,beepCtx.currentTime+t0);
+      g.gain.exponentialRampToValueAtTime(0.3,beepCtx.currentTime+t0+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001,beepCtx.currentTime+t0+0.16);
+      o.connect(g); g.connect(beepCtx.destination);
+      o.start(beepCtx.currentTime+t0); o.stop(beepCtx.currentTime+t0+0.18);
+    });
+  }catch(e){}
+}
+
+// Pause abgelaufen: Vibration + Ton + ggf. System-Benachrichtigung
+function restDone(){
+  if(restFired) return;
+  restFired=true;
+  disarmRestAlarm();
+  if(navigator.vibrate) navigator.vibrate([200,90,200,90,300]);
+  beep();
+  try{
+    if(document.hidden && typeof Notification!=='undefined' && Notification.permission==='granted'){
+      new Notification('Pause vorbei 💪',{ body:'Zeit für den nächsten Satz!', tag:'rest', renotify:true });
+    }
+  }catch(e){}
+}
+
 function startRest(sec = 120) {
   restDuration = sec;
   restEndTime = Date.now() + sec * 1000;
@@ -159,6 +217,7 @@ function startRest(sec = 120) {
   const ring = document.getElementById('restRing');
   if (ring) ring.style.strokeDashoffset = '0';
 
+  armRestAlarm(sec*1000);
   clearInterval(restInterval);
   updateRest();
   restInterval = setInterval(updateRest, 500);
@@ -172,7 +231,7 @@ function updateRest() {
   if (remaining <= 0) {
     clearInterval(restInterval);
     document.getElementById('restBar').classList.remove('show');
-    if (navigator.vibrate) navigator.vibrate([150, 80, 150]);
+    restDone();
     return;
   }
 
@@ -189,6 +248,8 @@ function updateRest() {
 }
 
 function restSkip() {
+  disarmRestAlarm();
+  restFired=true; // übersprungen = kein Alarm mehr
   clearInterval(restInterval);
   document.getElementById('restBar').classList.remove('show');
 }
@@ -1448,6 +1509,8 @@ function toggleSet(id,i){
     updateStreak();
     S.stats.sets+=1;
     if(navigator.vibrate) navigator.vibrate(30);
+    unlockAudio();
+    askNotifPermission();
     startRest(getRestSec(id));
     save();
   } else {
@@ -1625,6 +1688,17 @@ function renderSession(list){
 // ═══════════════════════════════════════════════
 
 // Satz-Typ durchschalten: Normal → Aufwärm (W) → Drop-Set (D) → Normal
+// Einmalig nach Benachrichtigungs-Erlaubnis fragen (nur bei erster Nutzung)
+function askNotifPermission(){
+  try{
+    if(typeof Notification==='undefined') return;
+    if(Notification.permission!=='default') return;
+    if(localStorage.getItem('recep_notif_asked')) return;
+    localStorage.setItem('recep_notif_asked','1');
+    Notification.requestPermission();
+  }catch(e){}
+}
+
 function cycleSetType(id,i){
   if(!SES||!SES.ex[id]) return;
   const st=SES.ex[id].sets[i];

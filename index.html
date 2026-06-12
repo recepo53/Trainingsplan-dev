@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="RECEP">
+<meta name="theme-color" content="#111111">
+<title>Recep's Trainingsplan</title>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=1">
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="hdr">
+  <div class="hdr-built">Built For</div>
+  <div class="hdr-name">RECEP</div>
+  <div class="hdr-sub">4er Split · Body Recomp</div>
+</div>
+
+<!-- SYNC STATUS -->
+<div class="sync-bar">
+  <div class="sync-dot" id="syncDot"></div>
+  <span id="syncTxt">Verbinde...</span>
+</div>
+
+<!-- STATS BAR -->
+<div class="stats-bar-wrap">
+<div class="stats-bar">
+  <div class="stat-block">
+    <div class="stat-val" id="streakVal">0</div>
+    <div class="stat-lbl">Streak</div>
+  </div>
+  <div class="timer-center">
+    <div class="timer-num" id="timerDisp">00:00:00</div>
+    <div class="timer-btns">
+      <button class="t-btn" id="btnStart" onclick="timerStart()">START</button>
+      <button class="t-btn" onclick="timerStop()">STOP</button>
+      <button class="t-btn" onclick="timerReset()">RESET</button>
+    </div>
+  </div>
+  <div class="stat-block right">
+    <div class="stat-val" id="exCountVal">0</div>
+    <div class="stat-lbl">Übungen</div>
+  </div>
+</div>
+</div>
+
+<!-- DAY TABS -->
+<div class="day-tabs" id="dayTabs"></div>
+
+<!-- WORKOUT PANEL -->
+<div id="workoutPanel" class="workout-panel">
+  <div class="day-heading">
+    <div class="day-heading-left">
+      <div class="day-h-name" id="dayTitle">PUSH</div>
+      <span class="day-badge c1" id="dayBadge">BRUST</span>
+    </div>
+    <button class="add-ex-btn" onclick="openAdd()">+ Übung</button>
+  </div>
+  <button class="ses-start" id="sesStartBtn" onclick="startSession()">▶ Training starten</button>
+  <div class="ses-banner" id="sesBanner">
+    <div class="ses-live"><div class="ses-live-dot"></div><span id="sesBannerTxt">Live Session</span></div>
+    <button class="ses-end" onclick="endSession()">Beenden ■</button>
+  </div>
+  <input class="ex-search" id="exSearch" type="search" placeholder="🔍 Übung oder Muskel suchen …" oninput="renderExercises()">
+  <div class="ex-list" id="exList"></div>
+</div>
+
+<!-- FORTSCHRITT PANEL -->
+<div id="progPanel" class="prog-panel">
+  <div class="prog-heading">FORTSCHRITT</div>
+  <div class="week-grid" id="weekGrid"></div>
+  <div class="stat-boxes">
+    <div class="stat-box"><div class="sb-val" id="sbTrainings">0</div><div class="sb-lbl">Trainings</div></div>
+    <div class="stat-box"><div class="sb-val" id="sbSets">0</div><div class="sb-lbl">Gesamte Sets</div></div>
+    <div class="stat-box"><div class="sb-val" id="sbStreak">0</div><div class="sb-lbl">Aktuelle Serie</div></div>
+    <div class="stat-box"><div class="sb-val" id="sbBest">0</div><div class="sb-lbl">Beste Serie</div></div>
+  </div>
+  <div class="prog-ex-sec-title">Übungs-Fortschritt</div>
+  <div class="exch-card">
+    <select class="exch-sel" id="exchSel" onchange="selectExChart(this.value)"></select>
+    <div class="seg">
+      <button class="seg-btn active" id="segW" onclick="setExMetric('weight')">Gewicht</button>
+      <button class="seg-btn" id="segV" onclick="setExMetric('volume')">Volumen</button>
+      <button class="seg-btn" id="seg1" onclick="setExMetric('orm')">1RM (gesch.)</button>
+    </div>
+    <svg id="exChartSvg" class="exch-svg"></svg>
+    <div class="exch-empty" id="exchEmpty">Noch keine Daten — logge ein paar Trainings 💪</div>
+    <div class="exch-dates"><span id="exchD0"></span><span id="exchD1"></span></div>
+    <div class="exch-stats">
+      <div><div class="exch-sv" id="exchBest">—</div><div class="exch-sl">Bester</div></div>
+      <div><div class="exch-sv" id="exchLast">—</div><div class="exch-sl">Letzter</div></div>
+      <div><div class="exch-sv" id="exchDelta">—</div><div class="exch-sl">Veränderung</div></div>
+    </div>
+  </div>
+  <div class="prog-ex-sec-title">Rekorde · gewählte Übung</div>
+  <div class="rec-card"><div class="rec-grid" id="recGrid"></div></div>
+  <div class="prog-ex-sec-title">Sätze pro Muskel · diese Woche</div>
+  <div class="mus-card" id="musCard"></div>
+</div>
+
+<!-- HISTORIE PANEL -->
+<div id="histPanel" class="prog-panel">
+  <div class="prog-heading">HISTORIE</div>
+  <div class="prog-ex-sec-title">Trainings-Kalender</div>
+  <div class="cal-card">
+    <div class="cal-scroll"><div class="cal-inner">
+      <div class="cal-months" id="calMonths"></div>
+      <div class="cal-body">
+        <div class="cal-dows"><span>Mo</span><span></span><span>Mi</span><span></span><span>Fr</span><span></span><span>So</span></div>
+        <div class="cal-grid" id="calGrid"></div>
+      </div>
+    </div></div>
+    <div class="cal-foot">
+      <div class="cal-streak" id="calStreak">🔥 0 Tage · <span>Best: 0</span></div>
+      <div class="cal-legend">
+        <span>weniger</span>
+        <div class="cal-cell"></div><div class="cal-cell l1"></div><div class="cal-cell l2"></div><div class="cal-cell l3"></div>
+        <span>mehr</span>
+      </div>
+    </div>
+  </div>
+  <div class="prog-ex-sec-title">Trainingshistorie</div>
+  <div id="trainingHistory"></div>
+  <div class="prog-ex-sec-title" style="margin-top:18px">Übungshistorie</div>
+  <div id="progList"></div>
+</div>
+
+<!-- GEWICHT PANEL -->
+<div id="weightPanel" class="weight-panel">
+  <div class="weight-heading">GEWICHT</div>
+
+  <!-- INPUT -->
+  <div class="weight-input-card">
+    <div class="weight-inp-lbl">Heutiges Gewicht (kg)</div>
+    <div class="weight-input-row">
+      <div class="weight-inp-wrap">
+        <input class="weight-inp" id="weightInp" type="number" inputmode="decimal" step="0.1" min="30" max="250" placeholder="z.B. 82.5">
+      </div>
+      <button class="weight-save-btn" onclick="saveWeight()">SPEICHERN</button>
+    </div>
+  </div>
+
+  <!-- TODAY -->
+  <div class="weight-today" id="weightTodayWrap" style="display:none">
+    <div class="weight-today-val" id="weightTodayVal">—</div>
+    <div class="weight-today-lbl">Heute · <span id="weightTodayDate"></span></div>
+  </div>
+
+  <!-- STATS -->
+  <div class="weight-stats">
+    <div class="ws-box"><div class="ws-val" id="wsStart">—</div><div class="ws-lbl">Start</div></div>
+    <div class="ws-box"><div class="ws-val" id="wsCurrent">—</div><div class="ws-lbl">Aktuell</div></div>
+    <div class="ws-box"><div class="ws-val" id="wsTotal" class="neu">—</div><div class="ws-lbl">Gesamt</div></div>
+  </div>
+
+  <!-- CHART -->
+  <div class="chart-wrap" id="chartWrap" style="display:none">
+    <div class="chart-title">Verlauf (letzte 30 Tage)</div>
+    <div class="chart-svg-wrap">
+      <svg class="weight-chart" id="weightChartSvg" height="120" viewBox="0 0 300 120"></svg>
+    </div>
+  </div>
+
+  <!-- WEEKLY -->
+  <div class="wh-card" id="weeklyTable" style="display:none">
+    <div style="padding:14px 16px 0">
+      <div class="week-table-title">Wöchentlicher Fortschritt</div>
+    </div>
+    <div id="weeklyRows"></div>
+  </div>
+
+  <!-- HISTORY -->
+  <div class="wh-card" id="weightHistCard" style="display:none">
+    <div style="padding:14px 16px 0">
+      <div class="week-table-title">Alle Einträge</div>
+    </div>
+    <div id="weightHistList"></div>
+  </div>
+</div>
+
+<!-- REST BAR -->
+<div class="rest-bar" id="restBar">
+  <div class="rest-ring-wrap">
+    <svg width="52" height="52" viewBox="0 0 52 52">
+      <circle class="rest-ring-bg" cx="26" cy="26" r="22"></circle>
+      <circle class="rest-ring-fg" id="restRing" cx="26" cy="26" r="22" stroke-dasharray="138.2" stroke-dashoffset="0"></circle>
+    </svg>
+  </div>
+  <div>
+    <div class="rest-lbl">Pause</div>
+    <div class="rest-num" id="restNum">2:00</div>
+  </div>
+  <div class="rest-prog"><div class="rest-prog-bar" id="restProgBar" style="width:100%"></div></div>
+  <button class="rest-skip" onclick="restSkip()">überspringen →</button>
+</div>
+
+<!-- BOTTOM NAV -->
+<div class="bot-nav">
+  <button class="nav-b on" id="navW" onclick="switchTab('w')">
+    <div class="nav-b-icon">⚡</div><div class="nav-b-lbl">Workout</div>
+  </button>
+  <button class="nav-b" id="navP" onclick="switchTab('p')">
+    <div class="nav-b-icon">↗</div><div class="nav-b-lbl">Fortschritt</div>
+  </button>
+  <button class="nav-b" id="navH" onclick="switchTab('h')">
+    <div class="nav-b-icon">🗓</div><div class="nav-b-lbl">Historie</div>
+  </button>
+  <button class="nav-b" id="navG" onclick="switchTab('g')">
+    <div class="nav-b-icon">⚖️</div><div class="nav-b-lbl">Gewicht</div>
+  </button>
+</div>
+
+<!-- LOG MODAL -->
+<div class="overlay" id="logOv">
+  <div class="modal">
+    <div class="m-hdr"><div class="m-ttl" id="logTtl">LOG</div><button class="m-x" onclick="closeLog()">×</button></div>
+    <div class="m-body">
+      <div class="m-lbl" style="margin-bottom:8px">Gewicht (kg) & Wiederholungen</div>
+      <div id="logTodayStrip" style="display:none;margin-bottom:10px;padding:8px 10px;background:var(--bg3);border-radius:8px;border:1px solid var(--bg4);">
+        <div style="font-size:9px;font-weight:700;letter-spacing:.15em;color:var(--grey);text-transform:uppercase;margin-bottom:5px;">Heute bereits geloggt</div>
+        <div id="logTodayChips" style="display:flex;flex-wrap:wrap;gap:5px;"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:28px 1fr 1fr 30px;gap:7px;margin-bottom:6px">
+        <div></div><div class="set-hdr-lbl">kg</div><div class="set-hdr-lbl">Wdh.</div><div></div>
+      </div>
+      <div class="set-rows" id="setRows"></div>
+      <button class="add-set-btn" onclick="addSetRow()">+ Satz hinzufügen</button>
+      <button class="m-save" onclick="saveLog()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT MODAL -->
+<div class="overlay" id="editOv">
+  <div class="modal">
+    <div class="m-hdr"><div class="m-ttl">BEARBEITEN</div><button class="m-x" onclick="closeEdit()">×</button></div>
+    <div class="m-body">
+      <div class="m-lbl">Name</div><input class="m-inp" id="editName" type="text" placeholder="Übungsname">
+      <div class="m-lbl">Beschreibung</div><input class="m-inp" id="editDesc" type="text" placeholder="z.B. Untergriff">
+      <div class="m-row">
+        <div><div class="m-lbl">Sätze</div><input class="m-inp" id="editSets" type="number" min="1" max="10" placeholder="4"></div>
+        <div><div class="m-lbl">Wdh. Ziel</div><input class="m-inp" id="editReps" type="text" placeholder="8-12"></div>
+      </div>
+      <div class="m-lbl">Pause nach Satz (Sekunden)</div><input class="m-inp" id="editRest" type="number" min="15" max="600" placeholder="120">
+      <div class="m-lbl">Muskelgruppe</div>
+      <select class="m-sel" id="editMuscle"></select>
+      <button class="m-save" onclick="saveEdit()">Speichern</button>
+      <button class="m-del" onclick="askDel()">Übung löschen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD MODAL -->
+<div class="overlay" id="addOv">
+  <div class="modal">
+    <div class="m-hdr"><div class="m-ttl">ÜBUNG HINZUFÜGEN</div><button class="m-x" onclick="closeAdd()">×</button></div>
+    <div class="m-body">
+      <div class="m-lbl">Name</div><input class="m-inp" id="addName" type="text" placeholder="z.B. Cable Fly">
+      <div class="m-lbl">Beschreibung (optional)</div><input class="m-inp" id="addDesc" type="text" placeholder="z.B. Breiter Griff">
+      <div class="m-row">
+        <div><div class="m-lbl">Sätze</div><input class="m-inp" id="addSets" type="number" min="1" max="10" placeholder="4"></div>
+        <div><div class="m-lbl">Wdh. Ziel</div><input class="m-inp" id="addReps" type="text" placeholder="8-12"></div>
+      </div>
+      <div class="m-lbl">Pause nach Satz (Sekunden)</div><input class="m-inp" id="addRest" type="number" min="15" max="600" placeholder="120">
+      <div class="m-lbl">Muskelgruppe</div>
+      <select class="m-sel" id="addMuscle"><option value="auto">Automatisch erkennen</option></select>
+      <button class="m-save" onclick="saveAdd()">Hinzufügen</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM -->
+<div class="overlay" id="dayMgrOv">
+  <div class="modal">
+    <div class="m-hdr"><div class="m-ttl">EINHEITEN</div><button class="m-x" onclick="closeDayMgr()">✕</button></div>
+    <div class="m-body">
+      <div id="dmList"></div>
+      <button class="add-set-btn" style="margin-top:14px;margin-bottom:0;" onclick="openDayEdit(null)">+ Neue Einheit</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="dayEditOv">
+  <div class="modal">
+    <div class="m-hdr"><div class="m-ttl" id="deTtl">EINHEIT</div><button class="m-x" onclick="closeDayEdit()">✕</button></div>
+    <div class="m-body">
+      <div class="m-lbl">Name</div><input class="m-inp" id="deName" type="text" placeholder="z.B. LEG DAY" maxlength="14">
+      <div class="m-lbl">Untertitel</div><input class="m-inp" id="deBadge" type="text" placeholder="z.B. Beine" maxlength="12">
+      <button class="m-save" onclick="saveDayEdit()">Speichern</button>
+      <button class="m-del" id="deDel" onclick="askDelDay()">Einheit löschen</button>
+    </div>
+  </div>
+</div>
+
+<div class="conf-ov" id="plateOv">
+  <div class="conf-box" style="text-align:left;">
+    <div class="conf-ttl" style="text-align:center;">PLATE-RECHNER</div>
+    <div class="m-lbl">Zielgewicht gesamt (kg) · Stange 20 kg</div>
+    <input class="m-inp" id="plateKg" type="number" step="0.5" inputmode="decimal" placeholder="z.B. 80" oninput="calcPlates()">
+    <div class="plate-bar-lbl">Scheiben pro Seite</div>
+    <div id="plateOut" class="plate-out"><div class="plate-none">Gewicht eingeben …</div></div>
+    <button class="conf-no" style="width:100%;" onclick="closePlate()">Schließen</button>
+  </div>
+</div>
+
+<div class="conf-ov" id="confOv">
+  <div class="conf-box">
+    <div class="conf-ttl" id="confTtl">Sicher?</div>
+    <div class="conf-msg" id="confMsg">Diese Übung und alle gespeicherten Logs werden gelöscht.</div>
+    <div class="conf-btns">
+      <button class="conf-no" onclick="closeConf()">Abbrechen</button>
+      <button class="conf-yes" id="confYes">Löschen</button>
+    </div>
+  </div>
+</div>
+
+<div class="login-ov" id="loginOv">
+  <div class="login-box">
+    <div class="login-logo">RECEP</div>
+    <div class="login-sub">Trainingsplan · Login</div>
+    <input class="login-inp" id="loginEmail" type="email" placeholder="E-Mail" autocomplete="username">
+    <input class="login-inp" id="loginPass" type="password" placeholder="Passwort" autocomplete="current-password">
+    <button class="login-btn" id="loginBtn">Einloggen</button>
+    <div class="login-err" id="loginErr"></div>
+  </div>
+</div>
+<button class="logout-btn" id="logoutBtn" onclick="sbLogout()">&#9099; Abmelden</button>
+
+<div class="sum-ov" id="sumOv">
+  <div class="sum-box">
+    <div class="sum-ttl">FERTIG!</div>
+    <div class="sum-sub" id="sumDay">Training abgeschlossen</div>
+    <div class="sum-grid">
+      <div class="sum-cell"><div class="sum-val" id="sumDur">—</div><div class="sum-lbl">Dauer</div></div>
+      <div class="sum-cell"><div class="sum-val" id="sumVol">0</div><div class="sum-lbl">Volumen (kg)</div></div>
+      <div class="sum-cell"><div class="sum-val" id="sumSets">0</div><div class="sum-lbl">Sätze</div></div>
+      <div class="sum-cell"><div class="sum-val" id="sumPR">—</div><div class="sum-lbl">PR</div></div>
+    </div>
+    <div class="sum-prs" id="sumPrList" style="display:none;"></div>
+    <button class="sum-close" onclick="closeSum()">Weiter</button>
+  </div>
+</div>
+<canvas id="confettiCv"></canvas>
+
+<div class="toast" id="toast"></div>
+
+<script src="app.js?v=1"></script>
+</body>
+</html>

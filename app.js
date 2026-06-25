@@ -153,6 +153,7 @@ let restDuration = 120;
 
 // ── Pausen-Wecker: Web Worker tickt auch im Hintergrund-Tab präzise ──
 let restWorker=null, restFallbackT=null, restFired=false;
+let swReg=null, APP_ICON=null;
 
 function armRestAlarm(ms){
   disarmRestAlarm();
@@ -204,7 +205,10 @@ function restDone(){
   beep();
   try{
     if(document.hidden && typeof Notification!=='undefined' && Notification.permission==='granted'){
-      new Notification('Pause vorbei 💪',{ body:'Zeit für den nächsten Satz!', tag:'rest', renotify:true });
+      const opts={ body:'Zeit für den nächsten Satz!', tag:'rest', renotify:true, vibrate:[200,90,200], icon:APP_ICON, badge:APP_ICON };
+      // Über den Service Worker zustellen (funktioniert auf Handys auch im Hintergrund)
+      if(swReg && swReg.showNotification){ swReg.showNotification('Pause vorbei 💪', opts); }
+      else { new Notification('Pause vorbei 💪', opts); }
     }
   }catch(e){}
 }
@@ -1869,6 +1873,18 @@ function saveAdd(){
   const k=DAYS[curDay].key;
   if(!S.exercises[k]) S.exercises[k]=[];
   S.exercises[k].push({id:uid(),name:n,desc:document.getElementById('addDesc').value.trim(),sets:parseInt(document.getElementById('addSets').value)||4,reps:document.getElementById('addReps').value.trim()||'10-12',restSec:Math.min(600,Math.max(15,parseInt(document.getElementById('addRest').value)||120)),muscle:(document.getElementById('addMuscle').value==='auto'?guessMuscle(n):document.getElementById('addMuscle').value)});
+  // Läuft gerade eine Session an genau diesem Tag? Dann die neue Übung sofort einreihen.
+  if(SES && DAYS[SES.day].key===k){
+    const newEx=S.exercises[k][S.exercises[k].length-1];
+    const prev=lastPrevLog(newEx.id);
+    const sets=Array.from({length:newEx.sets||4},(_,i)=>{
+      const ps=prev&&prev.sets&&prev.sets.length?(prev.sets[i]||prev.sets[prev.sets.length-1]):null;
+      return { weight: ps?String(ps.weight||''):'', reps: ps?String(ps.reps||''):'', type: ps?(ps.type||''):'', rpe:'', done:false, saved:null };
+    });
+    SES.ex[newEx.id]={sets};
+    SES.oldPR[newEx.id]=getPR(newEx.id);
+    saveSes();
+  }
   save(); closeAdd(); renderExercises(); toast('Hinzugefügt');
 }
 function closeConf(){ document.getElementById('confOv').classList.remove('open'); delId=null; }
@@ -1953,7 +1969,19 @@ document.getElementById('loginPass').addEventListener('keydown', function(e){ if
 // ═══════════════════════════════════════════════
 // PWA
 // ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════
+// SERVICE WORKER (Offline + Benachrichtigungen im Hintergrund)
+// ═══════════════════════════════════════════════
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('sw.js')
+      .then(reg=>{ swReg=reg; })
+      .catch(()=>{});
+  });
+}
+
 (function setupPWA(){
+ try{
   const canvas=document.createElement('canvas');
   canvas.width=512;canvas.height=512;
   const ctx=canvas.getContext&&canvas.getContext('2d');
@@ -1962,7 +1990,9 @@ document.getElementById('loginPass').addEventListener('keydown', function(e){ if
   ctx.strokeStyle='#CCFF00';ctx.lineWidth=16;ctx.beginPath();ctx.roundRect(8,8,496,496,76);ctx.stroke();
   ctx.fillStyle='#CCFF00';ctx.font='bold 320px Impact,Anton,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('R',256,270);
   const icon=canvas.toDataURL('image/png');
+  APP_ICON=icon;
   const lnk=document.createElement('link');lnk.rel='apple-touch-icon';lnk.href=icon;document.head.appendChild(lnk);
-  const manifest={name:'RECEP — Trainingsplan',short_name:'RECEP',description:'4er Split · Body Recomp',start_url:'./',display:'standalone',orientation:'portrait',background_color:'#111111',theme_color:'#111111',icons:[{src:icon,sizes:'512x512',type:'image/png',purpose:'any maskable'}]};
+  const manifest={name:'RECEP — Trainingsplan',short_name:'RECEP',description:'4er Split · Body Recomp',start_url:'./',display:'standalone',orientation:'portrait',background_color:'#0C0D0F',theme_color:'#0C0D0F',icons:[{src:icon,sizes:'512x512',type:'image/png',purpose:'any maskable'}]};
   const ml=document.createElement('link');ml.rel='manifest';ml.href='data:application/manifest+json,'+encodeURIComponent(JSON.stringify(manifest));document.head.appendChild(ml);
+ }catch(e){}
 })();
